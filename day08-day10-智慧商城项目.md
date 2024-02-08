@@ -1,16 +1,15 @@
 # day08-day10-智慧商城项目
-[day08-day10-智慧商城项目.pdf](assets/day08-day10-智慧商城项目.pdf)
+[day08-day10-智慧商城项目.pdf](assets/day08-day10-智慧商城项目.pdf)  
 ![day08-day10-智慧商城项目.pdf](assets/day08-day10-智慧商城项目.pdf)
-[MD笔记-智慧商城项目.pdf](assets/MD笔记-智慧商城项目.pdf)
-[hm-shopping.zip](assets/hm-shopping.zip)
+[MD笔记-智慧商城项目.pdf](assets/MD笔记-智慧商城项目.pdf)  
+[hm-shopping.zip](assets/hm-shopping.zip)  
+[project/hm-shopping](project/hm-shopping/)  
 
-- **创建项目** ：基于 VueCli 自定义创建项目架子 
-- **调整初始化目录** ：将目录调整成符合企业规范的目录 
+接口文档： https://apifox.com/apidoc/shared-12ab6b18-adc2-444c-ad11-0e60f5693f66/doc-2221080  
+基地址： http://cba.itlike.com/public/index.php?s=/api/  
+
 - **vant 组件库** ：认识第三方 Vue组件库 vant-ui 
 - **项目中的 vw 适配** ：基于 postcss 插件 实现项目 vw 适配 
-- **路由设计配置** ：分析项目页面，设计路由，配置一级路由 
-	阅读vant组件库文档，实现底部导航 tabbar 
-- **登录页静态布局**  
 - **request模块 - axios 封装** ：将 axios 请求方法，封装到  request 模块 
 - **图形验证码功能完成** ：基于请求回来的 base64 图片，实现图形验证码功能 
 - **api 接口模块 -封装图片验证码接口** ：将请求封装成方法，统一存放到 api 模块，与页面分离 
@@ -20,6 +19,14 @@
 - **响应拦截器统一处理错误提示** ：通过响应拦截器，统一处理接口的错误提示 
 - **登录权证信息存储** ：vuex 构建 user 模块存储登录权证 (token & userId) 
 - **storage存储模块 - vuex 持久化处理** ：封装 storage 存储模块，利用本地存储，进行 vuex 持久化处理
+- **添加请求 loading 效果** 统一在每次请求后台时，添加 loading 效果
+- **页面访问拦截** ：基于全局前置守卫，进行页面访问拦截处理
+- **搜索 - 历史记录管理** ：通过storage实现持久化（可以不用vuex）
+- **唤起弹层** ：ActionSheet 动作面板
+- **判断 token 添加登录提示** ：Dialog 弹出框
+- **页面回跳** ：$router.replace
+- **封装接口进行请求** ：请求拦截器统一携带 token
+
 
 ## 一、调整初始化目录
 1. 删除 多余的文件 
@@ -119,7 +126,7 @@ module.exports = {
 };
 ```
 
-## 三、路由设计配置
+## 三、【路由设计配置】
 目标：分析项目页面，设计路由，配置一级路由
 但凡是单个页面，独立展示的，都是一级路由
 ![](assets/Pasted%20image%2020240207103142.png)
@@ -175,7 +182,7 @@ const router = new VueRouter({
 van-tabbar 加上 route属性 即可支持路由模式（vue-router），自动高亮
 
 
-## 四、登录页静态布局
+## 四、【登录页】静态布局
 ![](assets/Pasted%20image%2020240207125838.png)
 头部导航条：van-nav-bar
 https://vant-contrib.gitee.io/vant/v2/#/zh-CN/nav-bar
@@ -429,3 +436,198 @@ export default {
   actions: {}
 }
 ```
+
+## 十二、添加请求 loading 效果
+![](assets/Pasted%20image%2020240208094821.png)
+
+1. 请求拦截器中，每次请求，打开 loading 
+```js
+// 添加请求拦截器
+request.interceptors.request.use(function (config) {
+  // 在发送请求之前做些什么
+  // 开启loading，禁止背景点击 (节流处理，防止多次无效触发)
+  Toast.loading({
+    message: '加载中...',
+    forbidClick: true, // 禁止背景点击
+    loadingType: 'spinner', // 配置loading图标
+    duration: 0 // 不会自动消失
+  })
+  return config
+}, function (error) {
+  // 对请求错误做些什么
+  return Promise.reject(error)
+})
+```
+
+2. 响应拦截器中，每次响应，关闭 loading
+```js
+// 添加响应拦截器
+request.interceptors.response.use(function (response) {
+  const res = response.data
+  if (res.status !== 200) {
+    // 给错误提示, Toast 默认是单例模式，后面的 Toast调用了，会将前一个 Toast 效果覆盖。同时只能存在一个 Toast
+    Toast(res.message)
+    // 抛出一个错误的promise
+    return Promise.reject(res.message)
+  } else {
+    // 正确情况，直接走业务核心逻辑，清除loading效果
+    Toast.clear()
+  }
+  // 对响应数据做点什么
+  return res
+}, function (error) {
+  // 对响应错误做点什么
+  return Promise.reject(error)
+})
+```
+
+
+## 十三、页面访问拦截
+![](assets/Pasted%20image%2020240208101325.png)
+![](assets/Pasted%20image%2020240208101513.png)
+router/index.js
+```js
+// 定义一个数组，专门用户存放所有需要权限访问的页面
+const authUrls = ['/pay', '/myorder']
+
+router.beforeEach((to, from, next) => {
+  // console.log(to, from, next)
+  // 看 to.path 是否在 authUrls 中
+  if (!authUrls.includes(to.path)) {
+    // 非权限页面，直接放行
+    next()
+    return
+  }
+
+  // 是权限页面，需要判断token
+  const token = store.getters.token
+  if (token) {
+    next()
+  } else {
+    next('/login')
+  }
+})
+```
+
+
+## 十四、【首页】 - 静态结构准备 & 动态渲染
+![](assets/Pasted%20image%2020240208112937.png)
+首页： [views/layout/home.vue](project/hm-shopping/src/views/layout/home.vue)  
+组件： [components/GoodsItem.vue](project/hm-shopping/src/components/GoodsItem.vue)  
+接口封装： [api/home.js](project/hm-shopping/src/api/home.js)  
+
+## 十五、【搜索】 - 历史记录管理
+![](assets/Pasted%20image%2020240208130945.png)
+[views/search/index.vue](project/hm-shopping/src/views/search/index.vue)  
+Search 搜索： https://vant-contrib.gitee.io/vant/v2/#/zh-CN/search  
+通过storage实现持久化（可以不用vuex）： [utils/storage.js](project/hm-shopping/src/utils/storage.js)  
+
+## 十六、【搜索列表】 - 静态布局 & 动态渲染
+![](assets/Pasted%20image%2020240208135533.png)
+[views/search/list.vue](project/hm-shopping/src/views/search/list.vue)  
+[api/product.js](project/hm-shopping/src/api/product.js)
+
+## 十七、【商品详情】- 静态布局 & 渲染
+![](assets/Pasted%20image%2020240208154058.png)
+[views/prodetail/index.vue](project/hm-shopping/src/views/prodetail/index.vue)
+
+## 十八、加入购物车
+### 唤起弹层
+![](assets/Pasted%20image%2020240208161826.png)
+ActionSheet 动作面板： https://vant-contrib.gitee.io/vant/v2/#/zh-CN/action-sheet  
+[views/prodetail/index.vue](project/hm-shopping/src/views/prodetail/index.vue)
+
+### 封装数字框组件
+![](assets/Pasted%20image%2020240208164751.png)
+[components/CountBox.vue](project/hm-shopping/src/components/CountBox.vue)
+
+### 判断 token 添加登录提示，登录回跳
+![](assets/Pasted%20image%2020240208190551.png)
+Dialog 弹出框： https://vant-contrib.gitee.io/vant/v2/#/zh-CN/dialog  
+[views/prodetail/index.vue](project/hm-shopping/src/views/prodetail/index.vue) 添加 token 鉴权判断，跳转携带回跳地址
+```js
+async addCart () {
+  // 判断用户是否有登录
+  if (!this.$store.getters.token) {
+    this.$dialog.confirm({
+      title: '温馨提示',
+      message: '此时需要先登录才能继续操作哦',
+      confirmButtonText: '去登录',
+      cancelButtonText: '再逛逛'
+    })
+      .then(() => {
+        // 如果希望跳转到登录后能回跳回来，需要在跳转去携带参数(当前的路径地址)
+        this.$router.replace({
+          path: '/login',
+          query: {
+            backUrl: this.$route.fullPath // 完整路径包含参数
+          }
+        })
+      })
+      .catch(() => {})
+    return
+  }
+  console.log('进行加入购物车操作')
+}
+```
+使用 `this.$router.replace` 进行跳转，而不是 `this.$router.push`  
+push会添加回退记录，而replace不会。这样用户登陆后再按返回就不会再回到登陆界面了  
+修改 [views/login/index.vue](project/hm-shopping/src/views/login/index.vue) 实现回跳
+```js
+// 登录
+async login () {
+  if (!this.validFn()) {
+    return
+  }
+  if (!/^\d{6}$/.test(this.msgCode)) {
+    this.$toast('请输入正确的手机验证码')
+    return
+  }
+  console.log('发送登录请求')
+  const res = await codeLogin(this.mobile, this.msgCode)
+  this.$store.commit('user/setUserInfo', res.data)
+  this.$toast('登录成功')
+  // 进行判断，看地址栏有无回跳地址
+  // 1. 如果有   => 说明是其他页面，拦截到登录来的，需要回跳
+  // 2. 如果没有 => 正常去首页
+  const url = this.$route.query.backUrl || '/'
+  this.$router.replace(url)
+}
+```
+
+
+### 封装接口进行请求，请求拦截器统一携带 token
+![](assets/Pasted%20image%2020240208191345.png)
+[api/cart.js](project/hm-shopping/src/api/cart.js)
+[views/prodetail/index.vue](project/hm-shopping/src/views/prodetail/index.vue) 
+```js
+async addCart () {
+  ...
+  const { data } = await addCart(this.goodsId, this.addCount, this.detail.skuList[0].goods_sku_id)
+  this.cartTotal = data.cartTotal
+  this.$toast('加入购物车成功')
+  this.showPannel = false
+},
+```
+**请求拦截器中，统一携带 token**
+[utils/request.js](project/hm-shopping/src/utils/request.js)
+```js
+// 自定义配置 - 请求/响应 拦截器
+// 添加请求拦截器
+instance.interceptors.request.use(function (config) {
+  ...
+  // 只要有token，就在请求时携带，便于请求需要授权的接口
+  const token = store.getters.token
+  if (token) {
+    config.headers['Access-Token'] = token
+    config.headers.platform = 'H5'
+  }
+  return config
+}, function (error) {
+  // 对请求错误做些什么
+  return Promise.reject(error)
+})
+```
+
+
+
