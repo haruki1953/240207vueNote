@@ -977,6 +977,159 @@ actions: {
 
 ## 二十、【订单结算台】
 ![](assets/Pasted%20image%2020240209153033.png)
+[views/pay/index.vue](project/hm-shopping/src/views/pay/index.vue)  
+
+### 确认订单信息 - 封装通用接口
+![](assets/Pasted%20image%2020240209174518.png)
+[api/order.js](project/hm-shopping/src/api/order.js)
+
+### 购物车结算 - 购物车结算跳转传递参数
+![](assets/Pasted%20image%2020240209175850.png)
+跳转时，传递查询参数 [views/layout/cart.vue](project/hm-shopping/src/views/layout/cart.vue)  
+```jsx
+<div @click="goPay">结算({{ selCount }})</div>
+
+goPay () {
+  // 判断有没有选中商品
+  if (this.selCount > 0) {
+    // 有选中的 商品 才进行结算跳转
+    this.$router.push({
+      path: '/pay',
+      query: {
+        mode: 'cart',
+        cartIds: this.selCartList.map(item => item.id).join(',') 
+        // 'cartId,cartId,cartId'
+      }
+    })
+  }
+}
+```
+结算页面中接收参数, 调用接口，获取数据 [views/pay/index.vue](project/hm-shopping/src/views/pay/index.vue)  
+```jsx
+data () {
+  return {
+    order: {},
+    personal: {}
+  }
+},
+    
+computed: {
+  mode () {
+    return this.$route.query.mode
+  },
+  cartIds () {
+    return this.$route.query.cartIds
+  }
+}
+
+async created () {
+  this.getOrderList()
+},
+
+async getOrderList () {
+  if (this.mode === 'cart') {
+    const { data: { order, personal } } = await checkOrder(this.mode, { cartIds: this.cartIds })
+    this.order = order
+    this.personal = personal
+  }
+}
+```
+基于数据进行渲染 [views/pay/index.vue](project/hm-shopping/src/views/pay/index.vue)  
+
+### 立即购买结算
+![](assets/Pasted%20image%2020240209182723.png)
 
 
+### 登录确认框复用 (mixins混入)
+新建一个 mixin 文件 [mixins/loginConfirm.js](project/hm-shopping/src/mixins/loginConfirm.js)  
+```jsx
+export default {
+  // 此处编写的就是 Vue组件实例的 配置项，通过一定语法，可以直接混入到组件内部
+  // data methods computed 生命周期函数 ...
+  // 注意点：
+  // 1. 如果此处 和 组件内，提供了同名的 data 或 methods， 则组件内优先级更高
+  // 2. 如果编写了生命周期函数，则mixins中的生命周期函数 和 页面的生命周期函数，
+  //    会用数组管理，统一执行
+  created () {
+    // console.log('嘎嘎')
+  },
+  data () {
+    return {
+      title: '标题'
+    }
+  },
+  methods: {
+    sayHi () {
+      // console.log('你好')
+    },
 
+    // 根据登录状态，判断是否需要显示登录确认框
+    // 1. 如果未登录 => 显示确认框 返回 true
+    // 2. 如果已登录 => 啥也不干   返回 false
+    loginConfirm () {
+      // 判断 token 是否存在
+      if (!this.$store.getters.token) {
+        // 弹确认框
+        this.$dialog.confirm({
+          title: '温馨提示',
+          message: '此时需要先登录才能继续操作哦',
+          confirmButtonText: '去登陆',
+          cancelButtonText: '再逛逛'
+        })
+          .then(() => {
+            this.$router.replace({
+              path: '/login',
+              query: {
+                backUrl: this.$route.fullPath
+              }
+            })
+          })
+          .catch(() => {})
+        return true
+      }
+      return false
+    }
+  }
+}
+```
+页面中导入，混入方法 [views/prodetail/index.vue](project/hm-shopping/src/views/prodetail/index.vue)  
+```jsx
+import loginConfirm from '@/mixins/loginConfirm'
+
+export default {
+  name: 'ProDetail',
+  mixins: [loginConfirm],
+  ...
+}
+```
+页面中调用混入的方法 [views/prodetail/index.vue](project/hm-shopping/src/views/prodetail/index.vue)  
+```jsx
+async addCart () {
+  if (this.loginConfirm()) {
+    return
+  }
+  const { data } = await addCart(this.goodsId, this.addCount, this.detail.skuList[0].goods_sku_id)
+  this.cartTotal = data.cartTotal
+  this.$toast('加入购物车成功')
+  this.showPannel = false
+  console.log(this.cartTotal)
+},
+
+goBuyNow () {
+  if (this.loginConfirm()) {
+    return
+  }
+  this.$router.push({
+    path: '/pay',
+    query: {
+      mode: 'buyNow',
+      goodsId: this.goodsId,
+      goodsSkuId: this.detail.skuList[0].goods_sku_id,
+      goodsNum: this.addCount
+    }
+  })
+}
+```
+
+
+## 二十、提交订单并支付
