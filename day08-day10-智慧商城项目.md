@@ -598,8 +598,8 @@ async login () {
 
 ### 封装接口进行请求，请求拦截器统一携带 token
 ![](assets/Pasted%20image%2020240208191345.png)
-[api/cart.js](project/hm-shopping/src/api/cart.js)
-[views/prodetail/index.vue](project/hm-shopping/src/views/prodetail/index.vue) 
+[api/cart.js](project/hm-shopping/src/api/cart.js)  
+[views/prodetail/index.vue](project/hm-shopping/src/views/prodetail/index.vue)  
 ```js
 async addCart () {
   ...
@@ -628,6 +628,355 @@ instance.interceptors.request.use(function (config) {
   return Promise.reject(error)
 })
 ```
+
+## 十九、【购物车模块】
+![](assets/Pasted%20image%2020240209082140.png)
+[views/layout/cart.vue](project/hm-shopping/src/views/layout/cart.vue)  
+Checkbox 复选框： https://vant-contrib.gitee.io/vant/v2/#/zh-CN/checkbox  
+
+### 构建 vuex cart 模块，获取数据存储
+新建模块 [store/modules/cart.js](project/hm-shopping/src/store/modules/cart.js)  
+封装 API 接口 [api/cart.js](project/hm-shopping/src/api/cart.js)  
+```js
+// 获取购物车列表数据
+export const getCartList = () => {
+  return request.get('/cart/list')
+}
+```
+封装 action 和 mutation [store/modules/cart.js](project/hm-shopping/src/store/modules/cart.js)  
+```js
+mutations: {
+  setCartList (state, newList) {
+    state.cartList = newList
+  },
+},
+actions: {
+  async getCartAction (context) {
+    // 后台返回的数据中，不包含复选框的选中状态，为了实现将来的功能
+    // 需要手动维护数据，给每一项，添加一个 isChecked 状态 (标记当前商品是否选中)
+    const { data } = await getCartList()
+    data.list.forEach(item => {
+      item.isChecked = true
+    })
+    context.commit('setCartList', data.list)
+  }
+},
+```
+购物车页面中 dispatch 调用 [views/layout/cart.vue](project/hm-shopping/src/views/layout/cart.vue)  
+```js
+computed: {
+  isLogin () {
+    return this.$store.getters.token
+  }
+},
+created () {
+  if (this.isLogin) {
+    this.$store.dispatch('cart/getCartAction')
+  }
+},
+```
+
+### 基于 数据 动态渲染 购物车列表
+将数据映射到页面 [views/layout/cart.vue](project/hm-shopping/src/views/layout/cart.vue)  
+```js
+import { mapState } from 'vuex'
+
+computed: {
+  ...mapState('cart', ['cartList'])
+}
+```
+动态渲染 [views/layout/cart.vue](project/hm-shopping/src/views/layout/cart.vue)  
+```html
+<!-- 购物车列表 -->
+<div class="cart-list">
+  <div class="cart-item" v-for="item in cartList" :key="item.goods_id">
+    <van-checkbox icon-size="18" :value="item.isChecked"></van-checkbox>
+    <div class="show" @click="$router.push(`/prodetail/${item.goods_id}`)">
+      <img :src="item.goods.goods_image" alt="">
+    </div>
+    <div class="info">
+      <span class="tit text-ellipsis-2">{{ item.goods.goods_name }}</span>
+      <span class="bottom">
+        <div class="price">¥ <span>{{ item.goods.goods_price_min }}</span></div>
+        <CountBox :value="item.goods_num"></CountBox>
+      </span>
+    </div>
+  </div>
+</div>
+```
+
+### 封装 getters 实现动态统计
+封装 getters：商品总数 / 选中的商品列表 / 选中的商品总数 / 选中的商品总价  
+[store/modules/cart.js](project/hm-shopping/src/store/modules/cart.js)  
+```js
+getters: {
+  // 求所有的商品累加总数
+  cartTotal (state) {
+    return state.cartList.reduce((sum, item, index) => sum + item.goods_num, 0)
+  },
+  // 选中的商品项
+  selCartList (state) {
+    return state.cartList.filter(item => item.isChecked)
+  },
+  // Getter可以接收其他getter作为第二个参数
+  // 选中的总数
+  selCount (state, getters) {
+    return getters.selCartList.reduce((sum, item, index) => sum + item.goods_num, 0)
+  },
+  // 选中的总价
+  selPrice (state, getters) {
+    return getters.selCartList.reduce((sum, item, index) => {
+      return sum + item.goods_num * item.goods.goods_price_min
+    }, 0).toFixed(2)
+  }
+}
+```
+**Getter可以接收其他getter作为第二个参数**  
+
+页面中 mapGetters 映射使用 [views/layout/cart.vue](project/hm-shopping/src/views/layout/cart.vue)  
+```jsx
+computed: {
+  ...mapGetters('cart', ['cartTotal', 'selCount', 'selPrice']),
+},
+    
+<!-- 购物车开头 -->
+<div class="cart-title">
+  <span class="all">共<i>{{ cartTotal || 0 }}</i>件商品</span>
+  <span class="edit">
+    <van-icon name="edit"  />
+    编辑
+  </span>
+</div>
+
+
+<div class="footer-fixed">
+  <div  class="all-check">
+    <van-checkbox  icon-size="18"></van-checkbox>
+    全选
+  </div>
+  <div class="all-total">
+    <div class="price">
+      <span>合计：</span>
+      <span>¥ <i class="totalPrice">{{ selPrice }}</i></span>
+    </div>
+    <div v-if="true" :class="{ disabled: selCount === 0 }" class="goPay">
+      结算({{ selCount }})
+    </div>
+    <div v-else  :class="{ disabled: selCount === 0 }" class="delete">
+      删除({{ selCount }})
+    </div>
+  </div>
+</div>
+```
+
+### 全选反选功能
+点击小选，修改状态  
+[views/layout/cart.vue](project/hm-shopping/src/views/layout/cart.vue)  
+[store/modules/cart.js](project/hm-shopping/src/store/modules/cart.js)  
+```jsx
+// views/layout/cart.vue
+<van-checkbox icon-size="18" :value="item.isChecked" @click="toggleCheck(item.goods_id)"></van-checkbox>
+    
+toggleCheck (goodsId) {
+  this.$store.commit('cart/toggleCheck', goodsId)
+},
+
+// store/modules/cart.js 
+mutations: {
+  toggleCheck (state, goodsId) {
+    const goods = state.cartList.find(item => item.goods_id === goodsId)
+    goods.isChecked = !goods.isChecked
+  },
+}
+```
+全选 getters，全选按钮显示  
+[store/modules/cart.js](project/hm-shopping/src/store/modules/cart.js)  
+[views/layout/cart.vue](project/hm-shopping/src/views/layout/cart.vue)  
+```jsx
+getters: {
+  isAllChecked (state) {
+    return state.cartList.every(item => item.isChecked)
+  }
+}
+
+
+...mapGetters('cart', ['isAllChecked']),
+
+<div class="all-check">
+  <van-checkbox :value="isAllChecked" icon-size="18"></van-checkbox>
+  全选
+</div>
+```
+点击全选，重置状态  
+[views/layout/cart.vue](project/hm-shopping/src/views/layout/cart.vue)  
+[store/modules/cart.js](project/hm-shopping/src/store/modules/cart.js)  
+```jsx
+<div @click="toggleAllCheck" class="all-check">
+  <van-checkbox :value="isAllChecked" icon-size="18"></van-checkbox>
+  全选
+</div>
+
+toggleAllCheck () {
+  this.$store.commit('cart/toggleAllCheck', !this.isAllChecked)
+},
+
+
+mutations: {
+  toggleAllCheck (state, flag) {
+    state.cartList.forEach(item => {
+      item.isChecked = flag
+    })
+  },
+}
+```
+
+### 数字框修改数量功能
+封装 api 接口 [api/cart.js](project/hm-shopping/src/api/cart.js)  
+```jsx
+// 更新购物车商品数量
+export const changeCount = (goodsId, goodsNum, goodsSkuId) => {
+  return request.post('/cart/update', {
+    goodsId,
+    goodsNum,
+    goodsSkuId
+  })
+}
+```
+页面中注册点击事件，传递数据 [views/layout/cart.vue](project/hm-shopping/src/views/layout/cart.vue)  
+```jsx
+<!-- 既希望保留原本的形参，又需要通过调用函数传参 => 箭头函数包装一层 -->
+<CountBox :value="item.goods_num" @input="(value) => changeCount(value, item.goods_id, item.goods_sku_id)"></CountBox>
+
+changeCount (value, goodsId, skuId) {
+  this.$store.dispatch('cart/changeCountAction', {
+    value,
+    goodsId,
+    skuId
+  })
+},
+```
+提供 action 发送请求 [store/modules/cart.js](project/hm-shopping/src/store/modules/cart.js)  
+```jsx
+mutations: {
+  changeCount (state, { goodsId, value }) {
+    const obj = state.cartList.find(item => item.goods_id === goodsId)
+    obj.goods_num = value
+  }
+},
+actions: {
+  async changeCountAction (context, obj) {
+    const { goodsId, value, skuId } = obj
+    context.commit('changeCount', {
+      goodsId,
+      value
+    })
+    await changeCount(goodsId, value, skuId)
+  },
+}
+```
+
+### 编辑切换状态
+[views/layout/cart.vue](project/hm-shopping/src/views/layout/cart.vue)  
+data 提供数据, 定义是否在编辑删除的状态
+注册点击事件，修改状态
+```jsx
+<span class="edit" @click="isEdit = !isEdit">
+  <van-icon name="edit"  />
+  编辑
+</span>
+
+<div v-if="!isEdit" :class="{ disabled: selCount === 0 }" class="goPay">
+    去结算（{{ selCount }}）
+</div>
+<div v-else :class="{ disabled: selCount === 0 }" class="delete">删除</div>
+
+
+data () {
+  return {
+    isEdit: false
+  }
+},
+```
+监视编辑状态，动态控制复选框状态（编辑状态时购物车全不选）
+```jsx
+watch: {
+  isEdit (value) {
+    if (value) {
+      this.$store.commit('cart/toggleAllCheck', false)
+    } else {
+      this.$store.commit('cart/toggleAllCheck', true)
+    }
+  }
+}
+```
+
+
+### 删除功能
+查看接口，封装 API ( 注意：此处 id 为获取回来的购物车数据的 id ) [api/cart.js](project/hm-shopping/src/api/cart.js)  
+```jsx
+// 删除购物车
+export const delSelect = (cartIds) => {
+  return request.post('/cart/clear', {
+    cartIds
+  })
+}
+```
+注册删除点击事件 [views/layout/cart.vue](project/hm-shopping/src/views/layout/cart.vue)  
+```jsx
+<div v-else :class="{ disabled: selCount === 0 }" @click="handleDel" class="delete">
+  删除({{ selCount }})
+</div>
+
+async handleDel () {
+  if (this.selCount === 0) return
+  await this.$store.dispatch('cart/delSelect')
+  this.isEdit = false
+},
+```
+提供 actions [store/modules/cart.js](project/hm-shopping/src/store/modules/cart.js)  
+```jsx
+actions: {
+  // 删除购物车数据
+  async delSelect (context) {
+    const selCartList = context.getters.selCartList
+    const cartIds = selCartList.map(item => item.id)
+    await delSelect(cartIds)
+    Toast('删除成功')
+    
+    // 重新拉取最新的购物车数据 (重新渲染)
+    context.dispatch('getCartAction')
+  }
+},
+```
+
+### 空购物车处理
+外面包个大盒子，添加 v-if 判断 [views/layout/cart.vue](project/hm-shopping/src/views/layout/cart.vue)  
+```jsx
+<div class="cart-box" v-if="isLogin && cartList.length > 0">
+  <!-- 购物车开头 -->
+  <div class="cart-title">
+    ...
+  </div>
+  <!-- 购物车列表 -->
+  <div class="cart-list">
+    ...
+  </div>
+  <div class="footer-fixed">
+    ...
+  </div>
+</div>
+
+<div class="empty-cart" v-else>
+  <img src="@/assets/empty.png" alt="">
+  <div class="tips">
+    您的购物车是空的, 快去逛逛吧
+  </div>
+  <div class="btn" @click="$router.push('/')">去逛逛</div>
+</div>
+```
+
+## 二十、【订单结算台】
+![](assets/Pasted%20image%2020240209153033.png)
 
 
 
