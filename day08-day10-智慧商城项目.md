@@ -26,7 +26,11 @@
 - **判断 token 添加登录提示** ：Dialog 弹出框
 - **页面回跳** ：$router.replace
 - **封装接口进行请求** ：请求拦截器统一携带 token
-
+- **mixins混入** ： 登录确认框复用
+- **vuex 跨模块调用 mutation** ：{ root: true }
+- **项目打包** ：yarn build
+- **配置publicPath** ：设置静态资源链接为相对路径
+- **路由懒加载** ：分割组件的js文件，提高首页加载速度
 
 ## 一、调整初始化目录
 1. 删除 多余的文件 
@@ -1132,4 +1136,171 @@ goBuyNow () {
 ```
 
 
-## 二十、提交订单并支付
+### 提交订单并支付
+![](assets/Pasted%20image%2020240209195656.png)
+封装 API 通用方法 [api/order.js](project/hm-shopping/src/api/order.js)  
+注册点击事件，提交订单并支付 [views/pay/index.vue](project/hm-shopping/src/views/pay/index.vue)  
+```jsx
+<div class="tipsbtn" @click="submitOrder">提交订单</div>
+
+// 提交订单
+async submitOrder () {
+  if (this.mode === 'cart') {
+    await submitOrder(this.mode, {
+      remark: this.remark,
+      cartIds: this.cartIds
+    })
+  }
+  if (this.mode === 'buyNow') {
+    await submitOrder(this.mode, {
+      remark: this.remark,
+      goodsId: this.goodsId,
+      goodsSkuId: this.goodsSkuId,
+      goodsNum: this.goodsNum
+    })
+  }
+  this.$toast.success('支付成功')
+  this.$router.replace('/myorder')
+}
+```
+
+
+## 二十一、【订单管理 & 个人中心】
+![](assets/Pasted%20image%2020240209201055.png) 
+![](assets/Pasted%20image%2020240209201113.png)
+[views/myorder/index.vue](project/hm-shopping/src/views/myorder/index.vue)  
+[components/OrderListItem.vue](project/hm-shopping/src/components/OrderListItem.vue)  
+[views/layout/user.vue](project/hm-shopping/src/views/layout/user.vue)  
+
+### 点击 tab 切换渲染
+封装获取订单列表的 API 接口 [api/order.js](project/hm-shopping/src/api/order.js)  
+```jsx
+// 订单列表
+export const getMyOrderList = (dataType, page) => {
+  return request.get('/order/list', {
+    params: {
+      dataType,
+      page
+    }
+  })
+}
+```
+Tab 标签页 https://vant-contrib.gitee.io/vant/v2/#/zh-CN/tab
+给 tab 绑定 name 属性 [views/myorder/index.vue](project/hm-shopping/src/views/myorder/index.vue)  
+```jsx
+<van-tabs v-model="active" sticky>
+  <van-tab name="all" title="全部"></van-tab>
+  <van-tab name="payment" title="待支付"></van-tab>
+  <van-tab name="delivery" title="待发货"></van-tab>
+  <van-tab name="received" title="待收货"></van-tab>
+  <van-tab name="comment" title="待评价"></van-tab>
+</van-tabs>
+
+data () {
+  return {
+    active: this.$route.query.dataType || 'all',
+    page: 1,
+    list: []
+  }
+},
+```
+封装调用接口获取数据 [views/myorder/index.vue](project/hm-shopping/src/views/myorder/index.vue)  
+```jsx
+methods: {
+  async getOrderList () {
+    const { data: { list } } = await getMyOrderList(this.active, this.page)
+    list.data.forEach((item) => {
+      item.total_num = 0
+      item.goods.forEach(goods => {
+        item.total_num += goods.total_num
+      })
+    })
+    this.list = list.data
+  }
+},
+watch: {
+  active: {
+    immediate: true,
+    handler () {
+      this.getOrderList()
+    }
+  }
+}
+```
+
+### 个人中心
+封装获取个人信息 - API接口 [api/user.js](project/hm-shopping/src/api/user.js)  
+调用接口，获取数据进行渲染 [views/layout/user.vue](project/hm-shopping/src/views/layout/user.vue)  
+#### 退出功能 - vuex 跨模块调用 mutation
+[views/layout/user.vue](project/hm-shopping/src/views/layout/user.vue)  
+[store/modules/user.js](project/hm-shopping/src/store/modules/user.js)  
+```jsx
+<button @click="logout">退出登录</button>
+
+methods: {
+  logout () {
+    this.$dialog.confirm({
+      title: '温馨提示',
+      message: '你确认要退出么？'
+    })
+      .then(() => {
+        this.$store.dispatch('user/logout')
+      })
+      .catch(() => {
+
+      })
+  }
+}
+
+// store/modules/user.js
+actions: {
+  logout (context) {
+    context.commit('setUserInfo', {})
+    // 跨模块调用 mutation { root: true }
+    context.commit('cart/setCartList', [], { root: true })
+  }
+},
+```
+在带命名空间的模块内访问全局内容（Global Assets） https://v3.vuex.vuejs.org/zh/guide/modules.html#%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4
+
+
+## 二十二、项目打包优化
+![](assets/Pasted%20image%2020240209204812.png)
+### 打包命令
+![](assets/Pasted%20image%2020240209205030.png)
+```sh
+yarn build
+```
+在项目的根目录会自动创建一个文件夹`dist`，dist中的文件就是打包后的文件，只需要放到服务器中即可。
+### 配置publicPath - 设置静态资源链接为相对路径
+不配置时，打包的静态资源链接都以根目录开始，必须放在网站根目录，如：https://x.com/index.html
+	 ![](assets/Pasted%20image%2020240209210301.png)
+配置后则为相对路径，可放在网站子目录，如：https://x.com/xxx/index.html
+	![](assets/Pasted%20image%2020240209210618.png)
+vue.config.js
+```js
+module.exports = {
+  // 设置获取.js,.css文件时，是以相对地址为基准的。
+  // https://cli.vuejs.org/zh/config/#publicpath
+  publicPath: './'
+}
+```
+
+### 路由懒加载
+![](assets/Pasted%20image%2020240209205352.png)
+路由懒加载 & 异步组件， 不会一上来就将所有的组件都加载，而是访问到对应的路由了，才加载解析这个路由对应的所有组件
+
+官网链接：[https://router.vuejs.org/zh/guide/advanced/lazy-loading.html#%E4%BD%BF%E7%94%A8-webpack](https://router.vuejs.org/zh/guide/advanced/lazy-loading.html#%E4%BD%BF%E7%94%A8-webpack)
+
+> 当打包构建应用时，JavaScript 包会变得非常大，影响页面加载。如果我们能把不同路由对应的组件分割成不同的代码块，然后当路由被访问的时候才加载对应组件，这样就更加高效了。
+
+[router/index.js](project/hm-shopping/src/router/index.js)
+```js
+const ProDetail = () => import('@/views/prodetail')
+const Pay = () => import('@/views/pay')
+const MyOrder = () => import('@/views/myorder')
+```
+可以选择性改造，使首页都要加载的还是打包在一起，不必分割
+
+![](assets/Pasted%20image%2020240209211855.png)
+
