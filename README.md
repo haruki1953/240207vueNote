@@ -12,6 +12,7 @@
 [day06-路由进阶](day06-路由进阶.md)  
 [day07-Vuex的基本使用](day07-Vuex的基本使用.md)  
 [day08-day10-智慧商城项目](day08-day10-智慧商城项目.md)  
+[day11-Vue3入门](day11-Vue3入门.md)  
 
 
 ### 240128今日vue学习
