@@ -427,3 +427,150 @@ const getCom = () => {
 **跨层传递方法**
 顶层组件可以向底层组件传递方法，底层组件调用方法修改顶层组件的数据
 ![](assets/Pasted%20image%2020240210211612.png)
+
+## 五、Vue3.3新特性
+### defineOptions
+
+背景说明：  
+有 `<script setup>` 之前，如果要定义 props, emits 可以轻而易举地添加一个与 setup 平级的属性。但是用了 `<script setup>` 后，就没法这么干了 setup 属性已经没有了，自然无法添加与其平级的属性。  
+为了解决这一问题，引入了 defineProps 与 defineEmits 这两个宏。但这只解决了 props 与emits 这两个属性。如果我们要定义组件的 name 或其他自定义的属性，还是得回到最原始的用法——再添加一个普通的`<script>`标签。这样就会存在两个 `<script>` 标签。让人无法接受。  
+
+所以在 Vue 3.3 中新引入了 defineOptions 宏。顾名思义，主要是用来定义 Options API 的选项。可以用defineOptions 定义任意的选项， props, emits, expose, slots 除外（因为这些可以使用defineXXX来做到）  
+![](assets/Pasted%20image%2020240211093644.png)
+
+### defineModel
+（试验性质）
+[App.vue](project/day11-vue3-demo/src/App.vue)  
+[components/my-input.vue](project/day11-vue3-demo/src/components/my-input.vue)  
+[components/my-input备份.vue](project/day11-vue3-demo/src/components/my-input备份.vue)  
+在Vue3中，自定义组件上使用v-model, 相当于传递一个modelValue属性，同时触发 update:modelValue 事件
+![](assets/Pasted%20image%2020240211094210.png)
+我们需要先定义 props，再定义 emits 。其中有许多重复的代码。如果需要修改此值，还需要手动调用 emit 函数。  
+
+于是乎 defineModel 诞生了。  
+![](assets/Pasted%20image%2020240211094754.png)
+生效需要配置 vite.config.js  
+```js
+import { fileURLToPath, URL } from 'node:url'
+
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [
+    vue({
+      script: {
+        // 开启defineModel
+        defineModel: true
+      }
+    }),
+  ],
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url))
+    }
+  }
+})
+```
+
+
+## 六、Pinia入门
+[day12-Pinia入门.pdf](assets/day12-Pinia入门.pdf)  
+[MD笔记-Pinia.pdf](assets/MD笔记-Pinia.pdf)  
+Pinia 是 Vue 的最新 状态管理工具 ，是 Vuex 的 替代品  
+https://pinia.vuejs.org/zh/  
+![](assets/Pasted%20image%2020240211110217.png)
+
+### 手动添加Pinia到Vue项目
+在实际开发项目的时候，关于Pinia的配置，可以在项目创建时自动添加  
+现在我们初次学习，从零开始：  
+1. 使用 Vite 创建一个空的 Vue3 项目 
+    `npm create vue@latest` 
+2. 按照官方文档 安装 pinia 到项目中
+https://pinia.vuejs.org/zh/getting-started.html  
+[main.js](project/day12-vue3-pinia-demo/src/main.js)  
+
+### Pinia基础使用 - 计数器案例
+1. 定义store 
+    https://pinia.vuejs.org/zh/core-concepts/
+2. 组件使用store
+![](assets/Pasted%20image%2020240211113659.png)
+[store/counter.js](project/day12-vue3-pinia-demo/src/store/counter.js)  
+
+### getters实现
+Pinia中的 getters 直接使用 computed函数 进行模拟, 组件中需要使用需要把 getters return出去
+![](assets/Pasted%20image%2020240211124845.png)
+
+### action异步实现
+编写方式：异步action函数的写法和组件中获取异步数据的写法完全一致  
+[store/channel.js](project/day12-vue3-pinia-demo/src/store/channel.js)  
+
+### storeToRefs工具函数
+直接解构会导致响应式丢失 https://pinia.vuejs.org/zh/core-concepts/#using-the-store  
+使用storeToRefs函数可以辅助保持数据（state + getter）的响应式解构  
+`import { storeToRefs } from 'pinia'`  
+![](assets/Pasted%20image%2020240211132841.png)
+方法可以直接解构
+
+### Pinia的调试
+Vue官方的 dev-tools 调试工具 对 Pinia直接支持，可以直接进行调试
+![](assets/Pasted%20image%2020240211133950.png)
+
+### Pinia持久化插件
+官方文档： https://prazdevs.github.io/pinia-plugin-persistedstate/zh/
+
+1. 安装插件 pinia-plugin-persistedstate 
+`npm i pinia-plugin-persistedstate` 
+
+2. main.js 使用 
+```js
+import persist from 'pinia-plugin-persistedstate' 
+...
+app.use(createPinia().use(persist)) 
+```
+
+3. store仓库中，persist: true 开启
+配置 store/counter.js
+```js
+import { defineStore } from 'pinia'
+import { computed, ref } from 'vue'
+
+export const useCounterStore = defineStore('counter', () => {
+  ...
+  return {
+    count,
+    doubleCount,
+    increment
+  }
+}, {
+  persist: true
+})
+```
+[store/counter.js](project/day12-vue3-pinia-demo/src/store/counter.js)  
+
+**更多配置**
+https://prazdevs.github.io/pinia-plugin-persistedstate/zh/guide/config.html
+```js
+// persist: true // 开启当前模块的持久化
+persist: {
+  key: 'hm-counter', // 修改本地存储的唯一标识
+  paths: ['count'] // 存储的是哪些数据
+}
+```
+
+
+### 总结
+1. Pinia是用来做什么的？
+	新一代的状态管理工具，替代vuex
+2. Pinia中还需要mutation吗？
+	不需要，action 既支持同步也支持异步
+3. Pinia如何实现getter？
+	computed计算属性函数
+4. Pinia产生的Store如何解构赋值数据保持响应式？
+	storeToRefs
+5. Pinia 如何快速实现持久化？
+	pinia-plugin-persistedstate
+
+
+
