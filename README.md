@@ -94,3 +94,12 @@ vue3入门
 一、Pinia 是 Vue 的最新 状态管理工具 ，是 Vuex 的 替代品  
 二、ESLint 配置代码风格，以及husky 代码检查工作流  
 三、了解vue3组合式api中的路由  
+
+
+### 240212今日vue学习
+1. 使用 Element Plus 组件库
+2. Pinia 仓库统一管理：由 stores/index.js 统一导出
+3. 请求/响应拦截器中，访问pinia仓库获取token，ElMessage提示错误
+4. 登录注册页面 el-form 表单校验以及提交
+
+[【散装知识】export与export_default](散装知识.md#export与export_default)  
