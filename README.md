@@ -103,3 +103,10 @@ vue3入门
 4. 登录注册页面 el-form 表单校验以及提交
 
 [【散装知识】export与export_default](散装知识.md#export与export_default)  
+
+
+### 240213今日vue学习
+1. 大事件案例首页布局，el-menu 菜单组件
+2. vue3的全局前置守卫、router.beforeEach
+3. 文章分类页面，vue3自制组件封装
+4. el-table 表格组件，el-dialog 弹层组件
