@@ -764,10 +764,115 @@ const login = async () => {
 ```
 
 
+## 十二、首页 layout 架子 【element-plus 菜单组件】
+![](assets/Pasted%20image%2020240213091650.png)
 
+### 基本架子拆解
+[views/layout/LayoutContainer.vue](project/day13-Vue3-big-event-admin/src/views/layout/LayoutContainer.vue)  
+**架子组件列表：**
+el-container https://element-plus.org/zh-CN/component/container.html
+- el-aside 左侧
+    - el-menu 左侧边栏菜单
+- el-container 右侧
+    - el-header 右侧头部
+        - el-dropdown
+    - el-main 右侧主体
+        - router-view
+```
+el-menu 整个菜单组件
+  :default-active="$route.path"  配置默认高亮的菜单项
+  router  router选项开启，el-menu-item 的 index 就是点击跳转的路径
 
+el-menu-item 菜单项
+  index="/article/channel" 配置的是访问的跳转路径，配合default-active的值，实现高亮
+```
 
+### 登录访问拦截router.beforeEach
+[router/index.js](project/day13-Vue3-big-event-admin/src/router/index.js)  
+https://router.vuejs.org/zh/guide/advanced/navigation-guards.html  
+需求：只有登录页，可以未授权的时候访问，其他所有页面，都需要先登录再访问
+```jsx
+// 登录访问拦截 => 默认是直接放行的
+// 根据返回值决定，是放行还是拦截
+// 返回值：
+// 1. undefined / true  直接放行
+// 2. false 拦回from的地址页面
+// 3. 具体路径 或 路径对象  拦截到对应的地址
+//    '/login'   { name: 'login' }
+router.beforeEach((to) => {
+  // 如果没有token, 且访问的是非登录页，拦截到登录，其他情况正常放行
+  const useStore = useUserStore()
+  if (!useStore.token && to.path !== '/login') return '/login'
+})
+```
 
+### 用户基本信息获取&渲染
+1. `api/user.js`封装接口
+```jsx
+export const userGetInfoService = () => request.get('/my/userinfo')
+```
 
+2. stores/modules/user.js 定义数据
+```jsx
+const user = ref({})
+const getUser = async () => {
+  const res = await userGetInfoService() // 请求获取数据
+  user.value = res.data.data
+}
+```
 
+3. `layout/LayoutContainer`页面中调用
+```js
+import { useUserStore } from '@/stores'
+const userStore = useUserStore()
+onMounted(() => {
+  userStore.getUser()
+})
+```
+
+4. 动态渲染
+```jsx
+<div>
+  黑马程序员：<strong>{{ userStore.user.nickname || userStore.user.username }}</strong>
+</div>
+
+<el-avatar :src="userStore.user.user_pic || avatar" />
+```
+
+### 退出功能 【element-plus 确认框】
+[views/layout/LayoutContainer.vue](project/day13-Vue3-big-event-admin/src/views/layout/LayoutContainer.vue)  
+1. 注册点击事件
+```jsx
+<el-dropdown placement="bottom-end" @command="onCommand">
+
+<el-dropdown-menu>
+  <el-dropdown-item command="profile" :icon="User">基本资料</el-dropdown-item>
+  <el-dropdown-item command="avatar" :icon="Crop">更换头像</el-dropdown-item>
+  <el-dropdown-item command="password" :icon="EditPen">重置密码</el-dropdown-item>
+  <el-dropdown-item command="logout" :icon="SwitchButton">退出登录</el-dropdown-item>
+</el-dropdown-menu>
+```
+
+2. 添加退出功能
+```jsx
+const onCommand = async (command) => {
+  if (command === 'logout') {
+    await ElMessageBox.confirm('你确认退出大事件吗？', '温馨提示', {
+      type: 'warning',
+      confirmButtonText: '确认',
+      cancelButtonText: '取消'
+    })
+    userStore.removeToken()
+    userStore.setUser({})
+    router.push(`/login`)
+  } else {
+    router.push(`/user/${command}`)
+  }
+}
+```
+
+3. pinia  user.js 模块 提供 setUser 方法
+```jsx
+const setUser = (obj) => (user.value = obj)
+```
 
