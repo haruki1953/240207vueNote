@@ -876,3 +876,409 @@ const onCommand = async (command) => {
 const setUser = (obj) => (user.value = obj)
 ```
 
+
+## 十三、文章分类页面 - 【element-plus 表格】
+![](assets/Pasted%20image%2020240213105847.png)
+
+### 基本架子 - PageContainer
+[views/article/ArticleChannel.vue](project/day13-Vue3-big-event-admin/src/views/article/ArticleChannel.vue)  
+[components/PageContainer.vue](project/day13-Vue3-big-event-admin/src/components/PageContainer.vue)  
+1. 基本结构样式，用到了 el-card 组件
+```jsx
+<template>
+  <el-card class="page-container">
+    <template #header>
+      <div class="header">
+        <span>文章分类</span>
+        <div class="extra">
+          <el-button type="primary">添加分类</el-button>
+        </div>
+      </div>
+    </template>
+     ...
+  </el-card>
+</template>
+
+<style lang="scss" scoped>
+.page-container {
+  min-height: 100%;
+  box-sizing: border-box;
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+</style>
+```
+
+2. 考虑到多个页面复用，封装成组件
+   - props 定制标题
+   - 默认插槽 default 定制内容主体
+   - 具名插槽 extra  定制头部右侧额外的按钮
+```jsx
+<script setup>
+defineProps({
+  title: {
+    required: true,
+    type: String
+  }
+})
+</script>
+
+<template>
+  <el-card class="page-container">
+    <template #header>
+      <div class="header">
+        <span>{{ title }}</span>
+        <div class="extra">
+          <slot name="extra"></slot>
+        </div>
+      </div>
+    </template>
+    <slot></slot>
+  </el-card>
+</template>
+
+<style lang="scss" scoped>
+.page-container {
+  min-height: 100%;
+  box-sizing: border-box;
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+</style>
+```
+
+3. 页面中直接使用测试 ( unplugin-vue-components 会自动注册)
+- 文章分类测试：
+```jsx
+<template>
+  <page-container title="文章分类">
+    <template #extra>
+      <el-button type="primary"> 添加分类 </el-button>
+    </template>
+
+    主体部分
+  </page-container>
+</template>
+```
+
+- 文章管理测试：
+```jsx
+<template>
+  <page-container title="文章管理">
+    <template #extra>
+      <el-button type="primary">发布文章</el-button>
+    </template>
+
+    主体部分
+  </page-container>
+</template>
+```
+
+### 文章分类渲染
+#### 封装API - 请求获取表格数据
+1.  新建 `api/article.js` 封装获取频道列表的接口
+```jsx
+import request from '@/utils/request'
+export const artGetChannelsService = () => request.get('/my/cate/list')
+```
+
+2. 页面中调用接口，获取数据存储
+```jsx
+const channelList = ref([])
+
+const getChannelList = async () => {
+  const res = await artGetChannelsService()
+  channelList.value = res.data.data
+}
+```
+
+#### el-table 表格动态渲染
+https://element-plus.org/zh-CN/component/table.html
+```jsx
+<el-table :data="channelList" style="width: 100%">
+  <el-table-column label="序号" width="100" type="index"> </el-table-column>
+  <el-table-column label="分类名称" prop="cate_name"></el-table-column>
+  <el-table-column label="分类别名" prop="cate_alias"></el-table-column>
+  <el-table-column label="操作" width="100">
+    <!-- row 就是 channelList 的一项， $index 下标 -->
+    <template #default="{ row }">
+      <el-button
+        :icon="Edit"
+        circle
+        plain
+        type="primary"
+        @click="onEditChannel(row)"
+      ></el-button>
+      <el-button
+        :icon="Delete"
+        circle
+        plain
+        type="danger"
+        @click="onDelChannel(row)"
+      ></el-button>
+    </template>
+  </el-table-column>
+  <template #empty>
+    <el-empty description="没有数据" />
+  </template>
+</el-table>
+
+
+const onEditChannel = (row) => {
+  console.log(row)
+}
+const onDelChannel = (row) => {
+  console.log(row)
+}
+```
+
+
+#### el-table 表格 loading 效果
+1. 定义变量，v-loading绑定
+```jsx
+const loading = ref(false)
+
+<el-table v-loading="loading">
+```
+
+2. 发送请求前开启，请求结束关闭
+```jsx
+const getChannelList = async () => {
+  loading.value = true
+  const res = await artGetChannelsService()
+  channelList.value = res.data.data
+  loading.value = false
+}
+```
+
+### 文章分类添加编辑 【element-plus 弹层】
+#### 点击显示弹层
+1. 准备弹层
+```jsx
+const dialogVisible = ref(false)
+
+<el-dialog v-model="dialogVisible" title="添加弹层" width="30%">
+  <div>我是内容部分</div>
+  <template #footer>
+    <span class="dialog-footer">
+      <el-button @click="dialogVisible = false">取消</el-button>
+      <el-button type="primary"> 确认 </el-button>
+    </span>
+  </template>
+</el-dialog>
+```
+
+2. 点击事件
+```jsx
+<template #extra><el-button type="primary" @click="onAddChannel">添加分类</el-button></template>
+
+const onAddChannel = () => {
+  dialogVisible.value = true
+}
+```
+
+#### 封装弹层组件 ChannelEdit
+添加 和 编辑，可以共用一个弹层，所以可以将弹层封装成一个组件
+
+组件对外暴露一个方法 open,  基于 open 的参数，初始化表单数据，并判断区分是添加 还是 编辑
+
+1. open({ })                   =>  添加操作，添加表单初始化无数据
+2. open({ id: xx,  ...  })  =>  编辑操作，编辑表单初始化需回显
+
+具体实现：
+1. 封装组件 `article/components/ChannelEdit.vue`
+```jsx
+<script setup>
+import { ref } from 'vue'
+const dialogVisible = ref(false)
+
+const open = async (row) => {
+  dialogVisible.value = true
+  console.log(row)
+}
+
+defineExpose({
+  open
+})
+</script>
+
+<template>
+  <el-dialog v-model="dialogVisible" title="添加弹层" width="30%">
+    <div>我是内容部分</div>
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary"> 确认 </el-button>
+      </span>
+    </template>
+  </el-dialog>
+</template>
+```
+
+2. 通过 ref 绑定
+```jsx
+const dialog = ref()
+
+<!-- 弹窗 -->
+<channel-edit ref="dialog"></channel-edit>
+```
+
+3. 点击调用方法显示弹窗
+```jsx
+const onAddChannel = () => {
+  dialog.value.open({})
+}
+const onEditChannel = (row) => {
+  dialog.value.open(row)
+}
+```
+
+#### 准备弹层表单
+1. 准备数据 和 校验规则
+```jsx
+const formModel = ref({
+  cate_name: '',
+  cate_alias: ''
+})
+const rules = {
+  cate_name: [
+    { required: true, message: '请输入分类名称', trigger: 'blur' },
+    {
+      pattern: /^\S{1,10}$/,
+      message: '分类名必须是1-10位的非空字符',
+      trigger: 'blur'
+    }
+  ],
+  cate_alias: [
+    { required: true, message: '请输入分类别名', trigger: 'blur' },
+    {
+      pattern: /^[a-zA-Z0-9]{1,15}$/,
+      message: '分类别名必须是1-15位的字母数字',
+      trigger: 'blur'
+    }
+  ]
+}
+```
+
+2. 准备表单
+```jsx
+<el-form
+  :model="formModel"
+  :rules="rules"
+  label-width="100px"
+  style="padding-right: 30px"
+>
+  <el-form-item label="分类名称" prop="cate_name">
+    <el-input
+      v-model="formModel.cate_name"
+      minlength="1"
+      maxlength="10"
+    ></el-input>
+  </el-form-item>
+  <el-form-item label="分类别名" prop="cate_alias">
+    <el-input
+      v-model="formModel.cate_alias"
+      minlength="1"
+      maxlength="15"
+    ></el-input>
+  </el-form-item>
+</el-form>
+```
+
+3. 编辑需要回显，表单数据需要初始化
+```jsx
+const open = async (row) => {
+  dialogVisible.value = true
+  formModel.value = { ...row }
+}
+```
+
+4. 基于传过来的表单数据，进行标题控制，有 id 的是编辑
+```jsx
+:title="formModel.id ? '编辑分类' : '添加分类'"
+```
+
+#### 确认提交
+1.  `api/article.js  `  封装请求 API
+```jsx
+// 添加文章分类
+export const artAddChannelService = (data) => request.post('/my/cate/add', data)
+// 编辑文章分类
+export const artEditChannelService = (data) =>
+  request.put('/my/cate/info', data)
+```
+
+2. 页面中校验，判断，提交请求
+```jsx
+<el-form ref="formRef">
+```
+```jsx
+const formRef = ref()
+const onSubmit = async () => {
+  await formRef.value.validate()
+  formModel.value.id
+    ? await artEditChannelService(formModel.value)
+    : await artAddChannelService(formModel.value)
+  ElMessage({
+    type: 'success',
+    message: formModel.value.id ? '编辑成功' : '添加成功'
+  })
+  dialogVisible.value = false
+}
+```
+
+3. 通知父组件进行回显
+```jsx
+const emit = defineEmits(['success'])
+
+const onSubmit = async () => {
+  ...
+  emit('success')
+}
+```
+
+4. 父组件监听 success 事件，进行调用回显
+```jsx
+<channel-edit ref="dialog" @success="onSuccess"></channel-edit>
+
+const onSuccess = () => {
+  getChannelList()
+}
+```
+
+
+
+### 文章分类删除
+1. `api/article.js`封装接口 api
+```jsx
+// 删除文章分类
+export const artDelChannelService = (id) =>
+  request.delete('/my/cate/del', {
+    params: { id }
+  })
+```
+
+2. 页面中添加确认框，调用接口进行提示
+```jsx
+const onDelChannel = async (row) => {
+  await ElMessageBox.confirm('你确认删除该分类信息吗？', '温馨提示', {
+    type: 'warning',
+    confirmButtonText: '确认',
+    cancelButtonText: '取消'
+  })
+  await artDelChannelService(row.id)
+  ElMessage({ type: 'success', message: '删除成功' })
+  getChannelList()
+}
+```
+
+
+
+
+
