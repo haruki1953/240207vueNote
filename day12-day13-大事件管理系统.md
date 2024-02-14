@@ -1279,6 +1279,769 @@ const onDelChannel = async (row) => {
 ```
 
 
+## 十四、文章管理页面 - 【element-plus 强化】
+[day14-Vue3-big-event-admin](project/day14-Vue3-big-event-admin/src/main.js)
+[views/article/ArticleManage.vue](project/day14-Vue3-big-event-admin/src/views/article/ArticleManage.vue)  
+### 文章列表渲染
+#### 基本架子搭建
+![](assets/Pasted%20image%2020240214091132.png)
+
+1. 搜索表单
+```jsx
+<el-form inline>
+  <el-form-item label="文章分类：">
+    <el-select>
+      <el-option label="新闻" value="111"></el-option>
+      <el-option label="体育" value="222"></el-option>
+    </el-select>
+  </el-form-item>
+  <el-form-item label="发布状态：">
+    <el-select>
+      <el-option label="已发布" value="已发布"></el-option>
+      <el-option label="草稿" value="草稿"></el-option>
+    </el-select>
+  </el-form-item>
+  <el-form-item>
+    <el-button type="primary">搜索</el-button>
+    <el-button>重置</el-button>
+  </el-form-item>
+</el-form>
+```
+
+2. 表格准备，模拟假数据渲染
+```jsx
+import { Delete, Edit } from '@element-plus/icons-vue'
+import { ref } from 'vue'
+// 假数据
+const articleList = ref([
+  {
+    id: 5961,
+    title: '新的文章啊',
+    pub_date: '2022-07-10 14:53:52.604',
+    state: '已发布',
+    cate_name: '体育'
+  },
+  {
+    id: 5962,
+    title: '新的文章啊',
+    pub_date: '2022-07-10 14:54:30.904',
+    state: null,
+    cate_name: '体育'
+  }
+])
+```
+
+```jsx
+<el-table :data="articleList" style="width: 100%">
+  <el-table-column label="文章标题" width="400">
+    <template #default="{ row }">
+      <el-link type="primary" :underline="false">{{ row.title }}</el-link>
+    </template>
+  </el-table-column>
+  <el-table-column label="分类" prop="cate_name"></el-table-column>
+  <el-table-column label="发表时间" prop="pub_date"> </el-table-column>
+  <el-table-column label="状态" prop="state"></el-table-column>
+  <el-table-column label="操作" width="100">
+    <template #default="{ row }">
+      <el-button
+        :icon="Edit"
+        circle
+        plain
+        type="primary"
+        @click="onEditArticle(row)"
+      ></el-button>
+      <el-button
+        :icon="Delete"
+        circle
+        plain
+        type="danger"
+        @click="onDeleteArticle(row)"
+      ></el-button>
+    </template>
+  </el-table-column>
+  <template #empty>
+    <el-empty description="没有数据" />
+  </template>
+</el-table>
+
+
+const onEditArticle = (row) => {
+  console.log(row)
+}
+const onDeleteArticle = (row) => {
+  console.log(row)
+}
+```
+
+#### 中英国际化处理
+https://element-plus.org/zh-CN/component/config-provider.html#i18n-%E9%85%8D%E7%BD%AE  
+默认是英文的，由于这里不涉及切换， 所以在 App.vue 中直接导入设置成中文即可，
+```jsx
+<script setup>
+import zh from 'element-plus/es/locale/lang/zh-cn.mjs'
+</script>
+
+<template>
+  <!-- 国际化处理 -->
+  <el-config-provider :locale="zh">
+    <router-view />
+  </el-config-provider>
+</template>
+```
+
+
+#### 文章分类选择
+为了便于维护，直接拆分成一个小组件 ChannelSelect.vue
+1. 新建 article/components/ChannelSelect.vue
+```jsx
+<template>
+  <el-select>
+    <el-option label="新闻" value="新闻"></el-option>
+    <el-option label="体育" value="体育"></el-option>
+  </el-select>
+</template>
+```
+
+2. 页面中导入渲染
+```vue
+import ChannelSelect from './components/ChannelSelect.vue'
+
+<el-form-item label="文章分类：">
+  <channel-select></channel-select>
+</el-form-item>
+```
+
+3. 调用接口，动态渲染下拉分类，设计成 v-model 的使用方式
+Vue2 => v-model :value 和 @input 的简写  
+Vue3 => v-model :modelValue 和 @update:modelValue 的简写  
+```jsx
+<script setup>
+import { artGetChannelsService } from '@/api/article'
+import { ref } from 'vue'
+
+defineProps({
+  modelValue: {
+    type: [Number, String]
+  }
+})
+
+const emit = defineEmits(['update:modelValue'])
+const channelList = ref([])
+const getChannelList = async () => {
+  const res = await artGetChannelsService()
+  channelList.value = res.data.data
+}
+getChannelList()
+</script>
+<template>
+  <el-select
+    :modelValue="modelValue"
+    @update:modelValue="emit('update:modelValue', $event)"
+  >
+    <el-option
+      v-for="channel in channelList"
+      :key="channel.id"
+      :label="channel.cate_name"
+      :value="channel.id"
+    ></el-option>
+  </el-select>
+</template>
+```
+
+4. 父组件定义参数绑定
+```jsx
+const params = ref({
+  pagenum: 1,
+  pagesize: 5,
+  cate_id: '',
+  state: ''
+})
+
+<channel-select v-model="params.cate_id"></channel-select>
+```
+
+5. 发布状态，也绑定一下，便于将来提交表单
+```jsx
+<el-select v-model="params.state">
+  <el-option label="已发布" value="已发布"></el-option>
+  <el-option label="草稿" value="草稿"></el-option>
+</el-select>
+```
+
+
+
+#### 封装 API 接口，请求渲染
+**没有数据，可以登录已完成的系统，添加几条数据**
+1. `api/article.js`封装接口
+```jsx
+export const artGetListService = (params) =>
+  request.get('/my/article/list', { params })
+```
+
+2. 页面中调用保存数据
+```jsx
+const articleList = ref([])
+const total = ref(0)
+
+const getArticleList = async () => {
+  const res = await artGetListService(params.value)
+  articleList.value = res.data.data
+  total.value = res.data.total
+}
+getArticleList()
+```
+
+3. 新建 `utils/format.js` 封装格式化日期函数
+```jsx
+import { dayjs } from 'element-plus'
+
+export const formatTime = (time) => dayjs(time).format('YYYY年MM月DD日')
+```
+
+4. 导入使用
+```vue
+import { formatTime } from '@/utils/format'
+
+<el-table-column label="发表时间">
+  <template #default="{ row }">
+    {{ formatTime(row.pub_date) }}
+  </template>
+</el-table-column>
+```
+
+
+
+
+
+#### 分页渲染 【element-plus 分页】
+https://element-plus.org/zh-CN/component/pagination.html
+1. 分页组件
+```jsx
+<el-pagination
+  v-model:current-page="params.pagenum"
+  v-model:page-size="params.pagesize"
+  :page-sizes="[2, 3, 4, 5, 10]"
+  layout="jumper, total, sizes, prev, pager, next"
+  background
+  :total="total"
+  @size-change="onSizeChange"
+  @current-change="onCurrentChange"
+  style="margin-top: 20px; justify-content: flex-end"
+/>
+```
+
+2. 提供分页修改逻辑
+```jsx
+const onSizeChange = (size) => {
+  params.value.pagenum = 1
+  params.value.pagesize = size
+  getArticleList()
+}
+const onCurrentChange = (page) => {
+  params.value.pagenum = page
+  getArticleList()
+}
+```
+
+#### 添加 loading 处理
+1. 准备数据
+```jsx
+const loading = ref(false)
+```
+
+2. el-table上面绑定
+```jsx
+<el-table v-loading="loading" > ... </el-table>
+```
+
+3. 发送请求时添加 loading
+```jsx
+const getArticleList = async () => {
+  loading.value = true
+    
+  ...
+  
+  loading.value = false
+}
+getArticleList()
+```
+
+
+
+#### 搜索 和 重置功能
+1. 注册事件
+```jsx
+<el-form-item>
+  <el-button @click="onSearch" type="primary">搜索</el-button>
+  <el-button @click="onReset">重置</el-button>
+</el-form-item>
+```
+
+2. 绑定处理
+```jsx
+const onSearch = () => {
+  params.value.pagenum = 1
+  getArticleList()
+}
+
+const onReset = () => {
+  params.value.pagenum = 1
+  params.value.cate_id = ''
+  params.value.state = ''
+  getArticleList()
+}
+```
+
+
+### 文章发布&修改 【element-plus - 抽屉】
+![](assets/Pasted%20image%2020240214133159.png)
+https://element-plus.org/zh-CN/component/drawer.html
+#### 点击显示抽屉 
+1. 准备数据
+```jsx
+import { ref } from 'vue'
+const visibleDrawer = ref(false)
+```
+
+2. 准备抽屉容器
+```jsx
+<el-drawer
+  v-model="visibleDrawer"
+  title="大标题"
+  direction="rtl"
+  size="50%"
+>
+  <span>Hi there!</span>
+</el-drawer>
+```
+
+3. 点击修改布尔值显示抽屉
+```jsx
+<el-button type="primary" @click="onAddArticle">发布文章</el-button>
+
+const visibleDrawer = ref(false)
+const onAddArticle = () => {
+  visibleDrawer.value = true
+}
+```
+
+#### 封装抽屉组件 ArticleEdit
+[views/article/components/ArticleEdit.vue](project/day14-Vue3-big-event-admin/src/views/article/components/ArticleEdit.vue)  
+添加 和 编辑，可以共用一个抽屉，所以可以将抽屉封装成一个组件  
+组件对外暴露一个方法 open,  基于 open 的参数，初始化表单数据，并判断区分是添加 还是编辑  
+1. open({ })                   =>  添加操作，添加表单初始化无数据
+2. open({ id: xx,  ...  })  =>  编辑操作，编辑表单初始化需回显
+
+具体实现：
+1. 封装组件 `article/components/ArticleEdit.vue`
+```jsx
+<script setup>
+import { ref } from 'vue'
+const visibleDrawer = ref(false)
+
+const open = (row) => {
+  visibleDrawer.value = true
+  console.log(row)
+}
+
+defineExpose({
+  open
+})
+</script>
+
+<template>
+  <!-- 抽屉 -->
+  <el-drawer v-model="visibleDrawer" title="大标题" direction="rtl" size="50%">
+    <span>Hi there!</span>
+  </el-drawer>
+</template>
+```
+
+2. 通过 ref 绑定
+```jsx
+const articleEditRef = ref()
+
+<!-- 弹窗 -->
+<article-edit ref="articleEditRef"></article-edit>
+```
+
+3. 点击调用方法显示弹窗
+```jsx
+// 编辑新增逻辑
+const onAddArticle = () => {
+  articleEditRef.value.open({})
+}
+const onEditArticle = (row) => {
+  articleEditRef.value.open(row)
+}
+```
+
+
+
+#### 完善抽屉表单结构
+1. 准备数据
+```jsx
+const formModel = ref({
+  title: '',
+  cate_id: '',
+  cover_img: '',
+  content: '',
+  state: ''
+})
+
+const open = async (row) => {
+  visibleDrawer.value = true
+  if (row.id) {
+    console.log('编辑回显')
+  } else {
+    console.log('添加功能')
+  }
+}
+```
+
+2. 准备 form 表单结构
+```jsx
+import ChannelSelect from './ChannelSelect.vue'
+
+<template>
+  <el-drawer
+    v-model="visibleDrawer"
+    :title="formModel.id ? '编辑文章' : '添加文章'"
+    direction="rtl"
+    size="50%"
+  >
+    <!-- 发表文章表单 -->
+    <el-form :model="formModel" ref="formRef" label-width="100px">
+      <el-form-item label="文章标题" prop="title">
+        <el-input v-model="formModel.title" placeholder="请输入标题"></el-input>
+      </el-form-item>
+      <el-form-item label="文章分类" prop="cate_id">
+        <channel-select
+          v-model="formModel.cate_id"
+          width="100%"
+        ></channel-select>
+      </el-form-item>
+      <el-form-item label="文章封面" prop="cover_img"> 文件上传 </el-form-item>
+      <el-form-item label="文章内容" prop="content">
+        <div class="editor">富文本编辑器</div>
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary">发布</el-button>
+        <el-button type="info">草稿</el-button>
+      </el-form-item>
+    </el-form>
+  </el-drawer>
+</template>
+```
+
+3. 一打开默认重置添加的 form 表单数据
+```jsx
+const defaultForm = {
+  title: '',
+  cate_id: '',
+  cover_img: '',
+  content: '',
+  state: ''
+}
+const formModel = ref({ ...defaultForm })
+
+const open = async (row) => {
+  visibleDrawer.value = true
+  if (row.id) {
+    console.log('编辑回显')
+  } else {
+    console.log('添加功能')
+    formModel.value = { ...defaultForm }
+  }
+}
+```
+
+4. 扩展 下拉菜单 width props
+```jsx
+defineProps({
+  modelValue: {
+    type: [Number, String]
+  },
+  width: {
+    type: String
+  }
+})
+
+<el-select
+ ...
+ :style="{ width }"
+>
+```
+
+#### 上传文件/图片 【element-plus - 文件预览】
+1. 关闭自动上传，准备结构
+```jsx
+import { Plus } from '@element-plus/icons-vue'
+
+<el-upload
+  class="avatar-uploader"
+  :auto-upload="false"
+  :show-file-list="false"
+  :on-change="onUploadFile"
+>
+  <img v-if="imgUrl" :src="imgUrl" class="avatar" />
+  <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
+</el-upload>
+```
+此处需要关闭 element-plus 的自动上传，不需要配置 action 等参数  
+只需要做前端的本地预览图片即可，无需在提交前上传图标  
+语法：URL.createObjectURL(...) 创建本地预览的地址，来预览  
+
+2. 准备数据 和 选择图片的处理逻辑
+```jsx
+const imgUrl = ref('')
+const onUploadFile = (uploadFile) => {
+  imgUrl.value = URL.createObjectURL(uploadFile.raw) // 预览图片
+  // 立刻将图片对象，存入 formModel.value.cover_img 将来用于提交
+  formModel.value.cover_img = uploadFile.raw
+}
+```
+
+3. 样式美化
+```css
+.avatar-uploader {
+  :deep() {
+    .avatar {
+      width: 178px;
+      height: 178px;
+      display: block;
+    }
+    .el-upload {
+      border: 1px dashed var(--el-border-color);
+      border-radius: 6px;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: var(--el-transition-duration-fast);
+    }
+    .el-upload:hover {
+      border-color: var(--el-color-primary);
+    }
+    .el-icon.avatar-uploader-icon {
+      font-size: 28px;
+      color: #8c939d;
+      width: 178px;
+      height: 178px;
+      text-align: center;
+    }
+  }
+}
+```
+`:deep()` 是 Vue.js 中的一个深度选择器，特别是在 Vue 3 的 Composition API 和 `<style scoped>` 中使用。当你在 Vue 组件中使用 `<style scoped>` 时，样式默认只会应用到该组件的模板中，而不会“泄漏”到其他组件或全局样式中。但是，有时你可能需要覆盖子组件或深层子组件的样式。  
+在这种情况下，你可以使用 `:deep()` 选择器来确保你的样式可以应用到更深层的子组件或子元素中。  
+例如，假设你有一个父组件，它有一个子组件，而子组件又有它自己的子元素。如果你只想在父组件中为这个子元素的子元素设置样式，但不想全局地设置它，你可以使用 `:deep()` 选择器。  
+
+
+#### 富文本编辑器 【 vue-quill 】
+官网地址： https://vueup.github.io/vue-quill/
+1. 安装包
+```js
+pnpm add @vueup/vue-quill@latest
+```
+
+2. 注册成局部组件
+```jsx
+import { QuillEditor } from '@vueup/vue-quill'
+import '@vueup/vue-quill/dist/vue-quill.snow.css'
+```
+
+3. 页面中使用绑定
+```jsx
+<div class="editor">
+  <quill-editor
+    theme="snow"
+    v-model:content="formModel.content"
+    contentType="html"
+  >
+  </quill-editor>
+</div>
+```
+
+4. 样式美化
+```jsx
+.editor {
+  width: 100%;
+  :deep(.ql-editor) {
+    min-height: 200px;
+  }
+}
+```
+
+
+
+#### 添加文章功能
+1. 封装添加接口
+```jsx
+export const artPublishService = (data) =>
+  request.post('/my/article/add', data)
+```
+
+2. 注册点击事件调用
+```jsx
+<el-form-item>
+  <el-button @click="onPublish('已发布')" type="primary">发布</el-button>
+  <el-button @click="onPublish('草稿')" type="info">草稿</el-button>
+</el-form-item>
+
+// 发布文章
+const emit = defineEmits(['success'])
+const onPublish = async (state) => {
+  // 将已发布还是草稿状态，存入 state
+  formModel.value.state = state
+
+  // 转换 formData 数据
+  // 注意：当前接口，需要的是 formData 对象
+  // 将普通对象 => 转换成 => formData对象
+  const fd = new FormData()
+  for (let key in formModel.value) {
+    fd.append(key, formModel.value[key])
+  }
+
+  if (formModel.value.id) {
+    console.log('编辑操作')
+  } else {
+    // 添加请求
+    await artPublishService(fd)
+    ElMessage.success('添加成功')
+    visibleDrawer.value = false
+    emit('success', 'add')
+  }
+}
+```
+
+3. 父组件监听事件，重新渲染
+```jsx
+<article-edit ref="articleEditRef" @success="onSuccess"></article-edit>
+
+// 添加修改成功
+const onSuccess = (type) => {
+  if (type === 'add') {
+    // 如果是添加，需要跳转渲染最后一页，编辑直接渲染当前页
+    const lastPage = Math.ceil((total.value + 1) / params.value.pagesize)
+    params.value.pagenum = lastPage
+  }
+  getArticleList()
+}
+```
+
+
+
+#### 添加完成后的内容重置
+```jsx
+const formRef = ref()
+const editorRef = ref()
+const open = async (row) => {
+  visibleDrawer.value = true
+  if (row.id) {
+    console.log('编辑回显')
+  } else {
+    formModel.value = { ...defaultForm }
+    imgUrl.value = ''
+    editorRef.value.setHTML('')
+  }
+}
+```
+
+#### 编辑文章回显
+如果是编辑操作，一打开抽屉，就需要发送请求，获取数据进行回显
+1. 封装接口，根据 id 获取详情数据
+```jsx
+export const artGetDetailService = (id) =>
+  request.get('my/article/info', { params: { id } })
+```
+
+2. 页面中调用渲染
+```jsx
+const open = async (row) => {
+  visibleDrawer.value = true
+  if (row.id) {
+    console.log('编辑回显')
+    const res = await artGetDetailService(row.id)
+    formModel.value = res.data.data
+    imgUrl.value = baseURL + formModel.value.cover_img
+    // 提交给后台，需要的是 file 格式的，将网络图片，转成 file 格式
+    // 网络图片转成 file 对象, 需要转换一下
+    formModel.value.cover_img = await imageUrlToFile(imgUrl.value, formModel.value.cover_img)
+  } else {
+    console.log('添加功能')
+    ...
+  }
+}
+```
+
+chatGPT prompt：封装一个函数，基于 axios， 网络图片地址，转 file 对象， 请注意：写中文注释
+```jsx
+// 将网络图片地址转换为File对象
+async function imageUrlToFile(url, fileName) {
+  try {
+    // 第一步：使用axios获取网络图片数据
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    const imageData = response.data;
+
+    // 第二步：将图片数据转换为Blob对象
+    const blob = new Blob([imageData], { type: response.headers['content-type'] });
+
+    // 第三步：创建一个新的File对象
+    const file = new File([blob], fileName, { type: blob.type });
+
+    return file;
+  } catch (error) {
+    console.error('将图片转换为File对象时发生错误:', error);
+    throw error;
+  }
+}
+```
+
+
+#### 编辑文章功能
+1. 封装编辑接口
+```jsx
+export const artEditService = (data) => request.put('my/article/info', data)
+```
+
+2. 提交时调用
+```jsx
+const onPublish = async (state) => {
+  ...
+  if (formModel.value.id) {
+    await artEditService(fd)
+    ElMessage.success('编辑成功')
+    visibleDrawer.value = false
+    emit('success', 'edit')
+  } else {
+    // 添加请求
+    ...
+  }
+}
+```
+
+### 文章删除
+1. 封装删除接口
+```jsx
+export const artDelService = (id) => request.delete('my/article/info', { params: { id } })
+```
+
+2. 页面中添加确认框调用
+```jsx
+const onDeleteArticle = async (row) => {
+  await ElMessageBox.confirm('你确认删除该文章信息吗？', '温馨提示', {
+    type: 'warning',
+    confirmButtonText: '确认',
+    cancelButtonText: '取消'
+  })
+  await artDelService(row.id)
+  ElMessage({ type: 'success', message: '删除成功' })
+  getArticleList()
+}
+```
+
+
+
 
 
 

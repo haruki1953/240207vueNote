@@ -110,3 +110,12 @@ vue3入门
 2. vue3的全局前置守卫、router.beforeEach
 3. 文章分类页面，vue3自制组件封装
 4. el-table 表格组件，el-dialog 弹层组件
+
+
+### 240214今日vue学习
+大事件项目文章管理页面搭建
+1. 选择框组件封装，Vue3中v-model是:modelValue 和 @update:modelValue 的简写
+2. 分页组件 el-pagination
+3. 抽屉 el-drawer。封装复用，可以通过暴露一个方法来接收参数
+4. 上传文件/图片 el-upload，URL.createObjectURL(...) 创建本地预览的地址
+5. 富文本编辑器 vue-quill
