@@ -2041,6 +2041,368 @@ const onDeleteArticle = async (row) => {
 ```
 
 
+## 十五、Ai辅助开发
+### Prompt 优化
+- **明确提问**：
+    确保问题表述清晰明确，关键字的准确度，决定了AI 对于需求的理解。
+- **细化需求：**
+    将问题拆分成多个小问题，可以帮助AI更具针对性地回答，也利于即时纠错。
+- **添加背景信息：**
+    提供有关问题背景的详细信息，也可以给 AI 预设一个角色，将有助于AI生成更具深度和价值的回答。
+- **适当引导：**
+    比如：“例如”、“请注意”、“请使用”等，来告诉模型你期望它做什么 或者 不做什么
+- **限制范围：**
+    通过限定回答的范围和长度，可以引导AI生成更精炼的回答
+...
+
+### 个人中心项目实战 - 基本资料
+#### 静态结构 + 校验处理
+chatgpt prompt 提示词参考：
+```
+请基于 elementPlus 和 Vue3 的语法，生成组件代码
+要求：
+一、表单结构要求
+1.  组件中包含一个el-form表单，有四行内容，前三行是输入框，第四行是按钮
+2. 第一行 label 登录名称，输入框禁用不可输入状态
+3. 第二行 label 用户昵称，输入框可输入
+4. 第三行 label 用户邮箱，输入框可输入
+5. 第四行按钮，提交修改
+
+二、校验需求
+给昵称 和 邮箱添加校验
+1. 昵称 nickname 必须是2-10位的非空字符串
+2. 邮箱 email 符合邮箱格式即可，且不能为空
+```
+
+参考目标代码：
+```jsx
+<script setup>
+import { useUserStore } from '@/stores'
+import { ref } from 'vue'
+const {
+  user: { username, nickname, email, id }
+} = useUserStore()
+
+const userInfo = ref({ username, nickname, email, id })
+
+const rules = {
+  nickname: [
+    { required: true, message: '请输入用户昵称', trigger: 'blur' },
+    {
+      pattern: /^\S{2,10}$/,
+      message: '昵称必须是2-10位的非空字符串',
+      trigger: 'blur'
+    }
+  ],
+  email: [
+    { required: true, message: '请输入用户邮箱', trigger: 'blur' },
+    { type: 'email', message: '邮箱格式不正确', trigger: 'blur' }
+  ]
+}
+</script>
+
+<template>
+  <page-container title="基本资料">
+    <el-row>
+      <el-col :span="12">
+        <el-form
+          :model="userInfo"
+          :rules="rules"
+          ref="formRef"
+          label-width="100px"
+          size="large"
+        >
+          <el-form-item label="登录名称">
+            <el-input v-model="userInfo.username" disabled></el-input>
+          </el-form-item>
+          <el-form-item label="用户昵称" prop="nickname">
+            <el-input v-model="userInfo.nickname"></el-input>
+          </el-form-item>
+          <el-form-item label="用户邮箱" prop="email">
+            <el-input v-model="userInfo.email"></el-input>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary">提交修改</el-button>
+          </el-form-item>
+        </el-form>
+      </el-col>
+    </el-row>
+  </page-container>
+</template>
+```
+
+#### 封装接口，更新个人信息
+1. 封装接口
+```jsx
+export const userUpdateInfoService = ({ id, nickname, email }) =>
+  request.put('/my/userinfo', { id, nickname, email })
+```
+
+2. 页面中校验后，封装调用
+```jsx
+const formRef = ref()
+const onSubmit = async () => {
+  const valid = await formRef.value.validate()
+  if (valid) {
+    await userUpdateInfoService(userInfo.value)
+    await getUser()
+    ElMessage.success('修改成功')
+  }
+}
+```
+
+
+### 个人中心项目实战 - 更换头像
+#### 静态结构
+```jsx
+<script setup>
+import { ref } from 'vue'
+import { Plus, Upload } from '@element-plus/icons-vue'
+import { useUserStore } from '@/stores'
+
+const userStore = useUserStore()
+
+const imgUrl = ref(userStore.user.user_pic)
+const onUploadFile = (file) => {
+  console.log(file)
+}
+</script>
+
+<template>
+  <page-container title="更换头像">
+    <el-row>
+      <el-col :span="12">
+        <el-upload
+          ref="uploadRef"
+          class="avatar-uploader"
+          :auto-upload="false"
+          :show-file-list="false"
+          :on-change="onUploadFile"
+        >
+          <img v-if="imgUrl" :src="imgUrl" class="avatar" />
+          <img v-else src="@/assets/avatar.jpg" width="278" />
+        </el-upload>
+        <br />
+        <el-button type="primary" :icon="Plus" size="large">
+          选择图片
+        </el-button>
+        <el-button type="success" :icon="Upload" size="large">
+          上传头像
+        </el-button>
+      </el-col>
+    </el-row>
+  </page-container>
+</template>
+
+<style lang="scss" scoped>
+.avatar-uploader {
+  :deep() {
+    .avatar {
+      width: 278px;
+      height: 278px;
+      display: block;
+    }
+    .el-upload {
+      border: 1px dashed var(--el-border-color);
+      border-radius: 6px;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: var(--el-transition-duration-fast);
+    }
+    .el-upload:hover {
+      border-color: var(--el-color-primary);
+    }
+    .el-icon.avatar-uploader-icon {
+      font-size: 28px;
+      color: #8c939d;
+      width: 278px;
+      height: 278px;
+      text-align: center;
+    }
+  }
+}
+</style>
+```
+
+#### 选择预览图片
+```jsx
+const uploadRef = ref()
+const imgUrl = ref(userStore.user.user_pic)
+const onUploadFile = (file) => {
+  // base64
+  const reader = new FileReader()
+  reader.readAsDataURL(file.raw)
+  reader.onload = () => {
+    imgUrl.value = reader.result
+  }
+}
+<el-upload ref="uploadRef"></el-upload> 
+<el-button
+  @click="uploadRef.$el.querySelector('input').click()"
+  type="primary"
+  :icon="Plus"
+  size="large"
+  >选择图片</el-button
+>
+```
+
+#### 上传头像
+1. 封装接口
+```jsx
+export const userUploadAvatarService = (avatar) => request.patch('/my/update/avatar', { avatar })
+```
+
+2. 调用接口
+```jsx
+const onUpdateAvatar = async () => {
+  await userUploadAvatarService(imgUrl.value)
+  await userStore.getUser()
+  ElMessage({ type: 'success', message: '更换头像成功' })
+}
+```
+
+
+### 个人中心项目实战 - 重置密码
+chatgpt  prompt
+```
+请基于 elementPlus 和 Vue3 的语法，生成组件代码
+要求：
+一、表单结构要求
+1. 组件中包含一个el-form表单，有四行内容，前三行是表单输入框，第四行是两个按钮
+2. 第一行 label 原密码
+3. 第二行 label 新密码
+4. 第三行 label 确认密码
+5. 第四行两个按钮，修改密码 和 重置
+
+二、form绑定字段如下：
+const pwdForm = ref({
+  old_pwd: '',
+  new_pwd: '',
+  re_pwd: ''
+})
+
+三、校验需求
+所有字段，都是 6-15位 非空
+自定义校验1：原密码 和 新密码不能一样
+自定义校验2：新密码 和 确认密码必须一样
+```
+
+#### 静态结构 + 校验处理
+```jsx
+<script setup>
+import { ref } from 'vue'
+const pwdForm = ref({
+  old_pwd: '',
+  new_pwd: '',
+  re_pwd: ''
+})
+
+const checkOldSame = (rule, value, cb) => {
+  if (value === pwdForm.value.old_pwd) {
+    cb(new Error('原密码和新密码不能一样!'))
+  } else {
+    cb()
+  }
+}
+
+const checkNewSame = (rule, value, cb) => {
+  if (value !== pwdForm.value.new_pwd) {
+    cb(new Error('新密码和确认再次输入的新密码不一样!'))
+  } else {
+    cb()
+  }
+}
+const rules = {
+  // 原密码
+  old_pwd: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    {
+      pattern: /^\S{6,15}$/,
+      message: '密码长度必须是6-15位的非空字符串',
+      trigger: 'blur'
+    }
+  ],
+  // 新密码
+  new_pwd: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    {
+      pattern: /^\S{6,15}$/,
+      message: '密码长度必须是6-15位的非空字符串',
+      trigger: 'blur'
+    },
+    { validator: checkOldSame, trigger: 'blur' }
+  ],
+  // 确认新密码
+  re_pwd: [
+    { required: true, message: '请再次确认新密码', trigger: 'blur' },
+    {
+      pattern: /^\S{6,15}$/,
+      message: '密码长度必须是6-15位的非空字符串',
+      trigger: 'blur'
+    },
+    { validator: checkNewSame, trigger: 'blur' }
+  ]
+}
+</script>
+<template>
+  <page-container title="重置密码">
+    <el-row>
+      <el-col :span="12">
+        <el-form
+          :model="pwdForm"
+          :rules="rules"
+          ref="formRef"
+          label-width="100px"
+          size="large"
+        >
+          <el-form-item label="原密码" prop="old_pwd">
+            <el-input v-model="pwdForm.old_pwd" type="password"></el-input>
+          </el-form-item>
+          <el-form-item label="新密码" prop="new_pwd">
+            <el-input v-model="pwdForm.new_pwd" type="password"></el-input>
+          </el-form-item>
+          <el-form-item label="确认新密码" prop="re_pwd">
+            <el-input v-model="pwdForm.re_pwd" type="password"></el-input>
+          </el-form-item>
+          <el-form-item>
+            <el-button @click="onSubmit" type="primary">修改密码</el-button>
+            <el-button @click="onReset">重置</el-button>
+          </el-form-item>
+        </el-form>
+      </el-col>
+    </el-row>
+  </page-container>
+</template>
+```
+
+#### 封装接口，更新密码信息
+1. 封装接口
+```jsx
+export const userUpdatePassService = ({ old_pwd, new_pwd, re_pwd }) =>
+  request.patch('/my/updatepwd', { old_pwd, new_pwd, re_pwd })
+```
+
+2. 页面中调用
+```jsx
+const formRef = ref()
+const router = useRouter()
+const userStore = useUserStore()
+const onSubmit = async () => {
+  const valid = await formRef.value.validate()
+  if (valid) {
+    await userUpdatePassService(pwdForm.value)
+    ElMessage({ type: 'success', message: '更换密码成功' })
+    userStore.setToken('')
+    userStore.setUser({})
+    router.push('/login')
+  }
+}
+const onReset = () => {
+  formRef.value.resetFields()
+}
+```
+
 
 
 
