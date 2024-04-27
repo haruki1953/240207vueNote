@@ -547,6 +547,7 @@ const formModel = ref({
 //    (3) callback 无论成功还是失败，都需要 callback 回调
 //        - callback() 校验成功
 //        - callback(new Error(错误信息)) 校验失败
+
 const rules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
