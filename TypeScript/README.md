@@ -8,3 +8,6 @@ https://pan.baidu.com/s/1xqyoISWdSBdWeCJhYA3LgQ&pwd=1234
 ### 240428TypeScript
 - 高级类型：交叉类型、泛型、索引签名类型、映射类型
 - 类型声明文件
+
+### 240429TypeScript
+在 Vue3 中使用 TypeScript
