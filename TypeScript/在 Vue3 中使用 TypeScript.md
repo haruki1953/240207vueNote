@@ -231,3 +231,87 @@ import type { ComponentPublicInstance } from 'vue'
 
 const child = ref<ComponentPublicInstance | null>(null)
 ```
+
+
+# 在项目中的使用
+对于项目中要使用的数据的类型，统一保存在 @/types/ 文件夹下，后缀名 .d.ts
+
+## 自动按需引入组件后的类型声明
+以自动按需引入vant为例 https://vant-contrib.gitee.io/vant/#/zh-CN/quickstart
+项目根目录下的 auto-imports.d.ts 与 components.d.ts 都是自动引入插件所生成的，其中包含了所使用的组件的类型信息。
+需要手动将这两个类型声明文件，添加至 tsconfig.app.json 中的 include 数组内
+```json
+{
+  // ...
+  "include": [
+    // ...
+    "auto-imports.d.ts",
+    "components.d.ts"
+  ],
+}
+```
+
+## 为组件模板引用标注类型
+使用import type，并不会重复导入。因为使用了组件自动导入，尽量避免重复导入
+对于vant4中的组件，应该导入 `组件名Instance`，否则会没有方法的类型，下面以Form表单组件为例
+```ts
+import type TestBox from '@/components/TestBox.vue'
+import type { FormInstance } from 'vant'
+
+// 自己封装的组件
+const refTestBox = ref<InstanceType<typeof TestBox>>()
+// vant4表单组件
+const form = ref<FormInstance>()
+```
+> 其实不用像vue官方一样加上null的联合类型，直接不写的话就是加上undefined的联合类型
+
+
+## 为封装的api方法标注类型
+暂时还是觉得就在写方法的同时标注类型比较方便，怎么方便怎么来吧。
+如果需要复用，就写在@/types/api.d.ts。如果数据类型在项目中也要使用，就在types文件夹新建文件来写
+
+对于响应数据，方法返回值类型为 `Promise<AxiosResponse<any, any>>`，两个any分别是成功与失败的响应数据，一般只指定第一个就可以了
+```ts
+/* 在api.d.ts对其做封装 */
+import type { AxiosResponse } from 'axios'
+// api方法返回值类型的，dataType为返回数据的类型
+export type ResData<DataType = undefined> = Promise<
+  AxiosResponse<{
+    code: number
+    message: string
+    data: DataType
+  }>
+>
+// 对于登录接口，没有data属性，而是token
+export type ResToken = Promise<
+  AxiosResponse<{
+    code: number
+    message: string
+    token: string
+  }>
+>
+
+/* 使用示例 */
+// api/auth.ts
+import request from '@/utils/request'
+import type { ResData, ResToken } from '@/types/api'
+
+export const authRegisterService = (data: {
+  username: string
+  password: string
+  email: string
+}): ResData => request.post('/auth/register', data)
+
+export const authLoginByUsernameService = (data: {
+  username: string
+  password: string
+}): ResToken => request.post('/auth/login/username', data)
+
+// api/public.ts
+import request from '@/utils/request'
+import type { ResData } from '@/types/api'
+import type { UserRes } from '@/types/user'
+
+export const publicGetUsersService = (): ResData<UserRes[]> =>
+  request.get('/public/users')
+```
