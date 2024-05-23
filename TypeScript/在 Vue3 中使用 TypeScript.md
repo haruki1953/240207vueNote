@@ -34,6 +34,17 @@ const props = defineProps<{
 > 这里vue的defineProps泛型函数里做了一些操作，声明了参数数据及其类型
 
 Props 解构默认值： https://cn.vuejs.org/guide/typescript/composition-api.html#props-default-values
+```ts
+const props = withDefaults(
+  defineProps<{
+    userId: number
+    usernameLink?: boolean
+  }>(),
+  {
+    usernameLink: true
+  }
+)
+```
 
 更复杂的 prop 类型： https://cn.vuejs.org/guide/typescript/composition-api.html#complex-prop-types
 
