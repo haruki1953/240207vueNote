@@ -161,7 +161,7 @@ main.js引入 `import '@/styles/common.scss'`
 **error lens 安装**
 ![](assets/Pasted%20image%2020240518104113.png)
 
-## scss文件自动导入
+## scss文件自动导入、scss变量
 在项目里一些组件共享的色值会以scss变量的方式统一放到一个名为 var.scss 的文件中，正常组件中使用，需要先导入scss文件，再使用内部的变量，比较繁琐，自动导入可以免去手动导入的步骤，直接使用内部的变量
 ![](assets/Pasted%20image%2020240518105517.png)
 .新增一个 styles/var.scss 文件，存入色值变量
